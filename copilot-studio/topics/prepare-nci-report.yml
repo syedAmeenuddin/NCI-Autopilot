@@ -1,0 +1,30 @@
+# Paste into Copilot Studio: open the agent -> Topics -> New topic -> Code editor (</>) view.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    triggerQueries:
+      - "Prepare the NCI report for this period"
+      - "Generate the weekly NCI scorecard"
+      - "Send the NCI report for {account}"
+      - "Give me the daily NCI report for {region}"
+  actions:
+    - kind: Question
+      id: askPeriod
+      variable: Topic.Period
+      prompt: "Which period — daily, weekly, or a specific date range?"
+      entity: StringPrebuiltEntity
+      alwaysPrompt: false      # skips this question if the trigger phrase already implied a period
+    - kind: InvokeFlowAction
+      id: callGenerateReport
+      flow: flow-generate-nci-report   # rename to match the flow's actual display name once imported
+      input:
+        period: =Topic.Period
+        account: =System.Recognizer.entities.account
+        region: =System.Recognizer.entities.region
+      output:
+        binding: Topic.ReportResult
+    - kind: SendActivity
+      id: confirmSent
+      activity: "{Topic.ReportResult.status}"

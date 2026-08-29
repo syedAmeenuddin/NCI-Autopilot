@@ -1,0 +1,7 @@
+account,region,to_emails,cc_emails
+Contoso,APAC,contoso.lead@example.com;contoso.pm@example.com,issuemgmt.apac@example.com
+Fabrikam,USA,fabrikam.lead@example.com,issuemgmt.usa@example.com
+Globex,Europe,globex.lead@example.com;globex.sec@example.com,issuemgmt.europe@example.com
+Initech,APAC,initech.lead@example.com,issuemgmt.apac@example.com
+Umbrella,USA,umbrella.lead@example.com,issuemgmt.usa@example.com
+Soylent,Europe,soylent.lead@example.com,issuemgmt.europe@example.com

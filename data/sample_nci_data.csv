@@ -1,0 +1,16 @@
+nci_id,account,region,instance_url,department,environment,severity,status,created_date,due_date,extension_count,category
+NCI-10001,Contoso,APAC,https://apac.service-now.com,Cloud,Cloud,High,Open,2026-05-01,2026-06-01,0,Access Control
+NCI-10002,Contoso,APAC,https://apac.service-now.com,NMS,NMS,Medium,Open,2026-02-15,2026-08-20,1,Patch Management
+NCI-10003,Fabrikam,USA,https://usa.service-now.com,Cloud,Cloud,Critical,Open,2025-07-10,2026-01-10,3,Encryption
+NCI-10004,Fabrikam,USA,https://usa.service-now.com,Cloud,Cloud,Low,Closed,2026-04-01,2026-05-01,0,Logging
+NCI-10005,Globex,Europe,https://europe.service-now.com,NMS,NMS,High,Open,2026-08-10,2026-09-01,0,Access Control
+NCI-10006,Globex,Europe,https://europe.service-now.com,Cloud,Cloud,Medium,Open,2026-08-20,2026-09-05,0,Configuration
+NCI-10007,Initech,APAC,https://apac.service-now.com,Cloud,Cloud,High,Open,2026-01-05,2026-02-05,2,Access Control
+NCI-10008,Initech,APAC,https://apac.service-now.com,NMS,NMS,Low,Open,2026-08-25,2026-09-10,0,Patch Management
+NCI-10009,Umbrella,USA,https://usa.service-now.com,Cloud,Cloud,Critical,Open,2025-01-15,2025-07-15,4,Encryption
+NCI-10010,Umbrella,USA,https://usa.service-now.com,Cloud,Cloud,Medium,Open,2026-08-27,2026-09-03,0,Logging
+NCI-10011,Soylent,Europe,https://europe.service-now.com,NMS,NMS,High,Open,2026-07-01,2026-08-25,1,Configuration
+NCI-10012,Soylent,Europe,https://europe.service-now.com,Cloud,Cloud,Low,Closed,2026-03-01,2026-04-01,0,Access Control
+NCI-10013,Contoso,APAC,https://apac.service-now.com,Cloud,Cloud,Critical,Open,2026-08-01,2026-08-28,0,Encryption
+NCI-10014,Fabrikam,USA,https://usa.service-now.com,NMS,NMS,High,Open,2026-06-15,2026-07-15,2,Patch Management
+NCI-10015,Globex,Europe,https://europe.service-now.com,Cloud,Cloud,Medium,Open,2026-08-15,2026-09-02,0,Configuration

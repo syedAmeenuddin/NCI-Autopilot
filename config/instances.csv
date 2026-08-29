@@ -1,0 +1,4 @@
+region,instance_url,grc_table,auth_type,connection_reference_name
+APAC,https://apac.service-now.com,sn_grc_issue,oauth2_client_credentials,sn_grc_apac_conn
+USA,https://usa.service-now.com,sn_grc_issue,oauth2_client_credentials,sn_grc_usa_conn
+Europe,https://europe.service-now.com,sn_grc_issue,oauth2_client_credentials,sn_grc_europe_conn

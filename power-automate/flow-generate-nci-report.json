@@ -1,0 +1,120 @@
+{
+  "_comment": "Cloud flow #2: called by the Copilot Studio topic 'Prepare NCI report' AND runnable on a Recurrence trigger for the daily/weekly scorecard (process table row 2). Mirrors scripts/nci_engine.py: compute_scorecard() + render_report().",
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "triggers": {
+      "When_Copilot_calls_this_flow": {
+        "type": "Request",
+        "kind": "PowerVirtualAgents",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "period": { "type": "string", "title": "Period", "description": "weekly, daily, or a date range label" },
+              "account": { "type": "string", "title": "Account" },
+              "region": { "type": "string", "title": "Region" }
+            }
+          }
+        }
+      },
+      "_alternative_trigger_for_scheduled_scorecards": {
+        "type": "Recurrence",
+        "recurrence": { "frequency": "Day", "interval": 1, "schedule": { "hours": ["7"] } },
+        "_comment": "Swap in as the trigger (instead of the PVA request) for the unattended daily scorecard, and set period='daily', account/region=null to cover everyone."
+      }
+    },
+    "actions": {
+      "Call_Get_Open_NCIs_flow": {
+        "type": "Workflow",
+        "runAfter": {},
+        "inputs": {
+          "host": { "workflowReferenceName": "flow-get-open-ncis" },
+          "body": {
+            "account": "@coalesce(triggerBody()?['account'], '')",
+            "region": "@coalesce(triggerBody()?['region'], '')"
+          }
+        },
+        "_comment": "Reuses flow #1 instead of duplicating the ServiceNow fetch logic."
+      },
+      "Initialize_ScorecardByAccount": {
+        "type": "InitializeVariable",
+        "runAfter": { "Call_Get_Open_NCIs_flow": ["Succeeded"] },
+        "inputs": { "variables": [{ "name": "ScorecardByAccount", "type": "object", "value": {} }] }
+      },
+      "Select_distinct_accounts": {
+        "type": "Select",
+        "runAfter": { "Initialize_ScorecardByAccount": ["Succeeded"] },
+        "inputs": {
+          "from": "@union(body('Call_Get_Open_NCIs_flow')?['matches'], body('Call_Get_Open_NCIs_flow')?['matches'])",
+          "select": "@item()?['account']"
+        },
+        "_comment": "union(x,x) is the classic Logic Apps de-dupe trick to get a distinct account list."
+      },
+      "For_each_account_compute_metrics": {
+        "type": "Foreach",
+        "runAfter": { "Select_distinct_accounts": ["Succeeded"] },
+        "foreach": "@body('Select_distinct_accounts')",
+        "actions": {
+          "Filter_this_account": {
+            "type": "Query",
+            "inputs": {
+              "from": "@body('Call_Get_Open_NCIs_flow')?['matches']",
+              "where": "@equals(item()?['account'], items('For_each_account_compute_metrics'))"
+            }
+          },
+          "Compose_metrics": {
+            "type": "Compose",
+            "runAfter": { "Filter_this_account": ["Succeeded"] },
+            "inputs": {
+              "totalOpen": "@length(body('Filter_this_account'))",
+              "overdueCount": "@length(filter(body('Filter_this_account'), item => less(item()?['due_date'], utcNow())))",
+              "excessiveExtensionCount": "@length(filter(body('Filter_this_account'), item => greater(item()?['extension_count'], 2)))",
+              "dueIn7DaysCount": "@length(filter(body('Filter_this_account'), item => and(greaterOrEquals(div(sub(ticks(item()?['due_date']), ticks(utcNow())), 864000000000), 0), lessOrEquals(div(sub(ticks(item()?['due_date']), ticks(utcNow())), 864000000000), 7))))"
+            },
+            "_comment": "Same three metrics as compute_scorecard() in nci_engine.py — overdue %, excessive-extension %, due-in-7-days count are these counts divided by totalOpen."
+          },
+          "Create_HTML_table_for_account": {
+            "type": "Table",
+            "runAfter": { "Compose_metrics": ["Succeeded"] },
+            "inputs": {
+              "format": "HTML",
+              "from": "@body('Filter_this_account')",
+              "columns": [
+                { "header": "NCI ID", "value": "@item()?['nci_id']" },
+                { "header": "Severity", "value": "@item()?['severity']" },
+                { "header": "Due Date", "value": "@item()?['due_date']" },
+                { "header": "Extensions", "value": "@item()?['extension_count']" }
+              ]
+            }
+          },
+          "Call_Send_NCI_Email_flow": {
+            "type": "Workflow",
+            "runAfter": { "Create_HTML_table_for_account": ["Succeeded"] },
+            "inputs": {
+              "host": { "workflowReferenceName": "flow-send-nci-email" },
+              "body": {
+                "account": "@items('For_each_account_compute_metrics')",
+                "period": "@coalesce(triggerBody()?['period'], 'weekly')",
+                "metrics": "@outputs('Compose_metrics')",
+                "htmlTable": "@body('Create_HTML_table_for_account')"
+              }
+            }
+          }
+        }
+      },
+      "Respond_to_Copilot": {
+        "type": "Response",
+        "kind": "PowerVirtualAgents",
+        "runAfter": { "For_each_account_compute_metrics": ["Succeeded"] },
+        "inputs": {
+          "body": { "status": "Report generated and sent to tracked recipients per account." }
+        }
+      }
+    }
+  },
+  "_deployment_notes": [
+    "This flow calls flow-get-open-ncis.json as a child flow — import that one first so 'workflowReferenceName' resolves.",
+    "For the unattended daily/weekly scorecard, clone this flow with the Recurrence trigger variant and remove the final PVA Response action (nothing is listening).",
+    "Power BI push (optional): add an 'Add rows to a dataset (Power BI)' action after Compose_metrics if the scorecard should also land in a live dashboard, not just email."
+  ]
+}

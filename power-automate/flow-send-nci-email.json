@@ -1,0 +1,68 @@
+{
+  "_comment": "Cloud flow #3: child flow, called per-account by flow-generate-nci-report.json. Mirrors scripts/nci_engine.py: resolve_recipients() + send_email_stub().",
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "triggers": {
+      "When_another_flow_calls_this": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "account": { "type": "string" },
+              "period": { "type": "string" },
+              "metrics": { "type": "object" },
+              "htmlTable": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "actions": {
+      "Get_recipients_from_tracker": {
+        "type": "OpenApiConnection",
+        "runAfter": {},
+        "inputs": {
+          "host": { "connectionName": "shared_sharepointonline", "operationId": "GetItems" },
+          "parameters": {
+            "dataset": "https://yourtenant.sharepoint.com/sites/IssueManagement",
+            "table": "RecipientTracker",
+            "$filter": "@concat('Account eq ''', triggerBody()?['account'], '''')"
+          }
+        },
+        "_comment": "Replace the macro-file/tracker sheet with this SharePoint list (see config/tracker.csv for the column layout: account, region, to_emails, cc_emails) so Power Automate can query it without opening Excel."
+      },
+      "Check_recipients_found": {
+        "type": "If",
+        "runAfter": { "Get_recipients_from_tracker": ["Succeeded"] },
+        "expression": "@greater(length(body('Get_recipients_from_tracker')?['value']), 0)",
+        "actions": {
+          "Send_an_email_V2": {
+            "type": "OpenApiConnection",
+            "inputs": {
+              "host": { "connectionName": "shared_office365", "operationId": "SendEmailV2" },
+              "parameters": {
+                "emailMessage/To": "@first(body('Get_recipients_from_tracker')?['value'])?['to_emails']",
+                "emailMessage/Cc": "@first(body('Get_recipients_from_tracker')?['value'])?['cc_emails']",
+                "emailMessage/Subject": "@concat('NCI ', triggerBody()?['period'], ' Report — ', triggerBody()?['account'])",
+                "emailMessage/Body": "@concat('<p>Open: ', triggerBody()?['metrics']?['totalOpen'], ' | Overdue: ', triggerBody()?['metrics']?['overdueCount'], ' | Excessive extensions: ', triggerBody()?['metrics']?['excessiveExtensionCount'], '</p>', triggerBody()?['htmlTable'])",
+                "emailMessage/Importance": "Normal"
+              }
+            }
+          }
+        },
+        "elseActions": {
+          "Log_missing_tracker_entry": {
+            "type": "Compose",
+            "inputs": "@concat('No tracker entry for account: ', triggerBody()?['account'], ' — email skipped. Add it to the RecipientTracker list.')"
+          }
+        }
+      }
+    }
+  },
+  "_deployment_notes": [
+    "to_emails/cc_emails in the tracker are semicolon-separated strings, same as config/tracker.csv — Office 365 Outlook's To/Cc fields accept ';'-separated addresses natively.",
+    "Add a Teams 'Post message' action alongside or instead of email if the team wants channel notifications too — same trigger inputs work."
+  ]
+}

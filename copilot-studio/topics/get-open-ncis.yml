@@ -1,0 +1,39 @@
+# Paste into Copilot Studio: open the agent -> Topics -> New topic -> Code editor (</>) view.
+# Trigger phrases here become the agent's example utterances automatically.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    triggerQueries:
+      - "Give me the latest open NCIs for cloud accounts"
+      - "Show open NCIs for {account}"
+      - "What NCIs are open in {region}"
+      - "List NCIs for {department}"
+  inputType: {}
+  outputType: {}
+  actions:
+    - kind: InvokeFlowAction
+      id: callGetOpenNCIs
+      flow: flow-get-open-ncis        # rename to match the flow's actual display name once imported
+      input:
+        account: =System.Recognizer.entities.account
+        region: =System.Recognizer.entities.region
+        department: =System.Recognizer.entities.department
+      output:
+        binding: Topic.NCIResult
+    - kind: ConditionGroup
+      id: checkResults
+      conditions:
+        - id: hasMatches
+          condition: =CountRows(Topic.NCIResult.matches) > 0
+          actions:
+            - kind: SendActivity
+              id: sendMatches
+              activity: |
+                Found {CountRows(Topic.NCIResult.matches)} open NCI(s):
+                {Topic.NCIResult.matches}
+      elseActions:
+        - kind: SendActivity
+          id: sendNoMatches
+          activity: "No open NCIs found for that filter."

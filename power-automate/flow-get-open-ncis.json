@@ -1,0 +1,102 @@
+{
+  "_comment": "Cloud flow #1: called directly by the Copilot Studio topic 'Get open NCIs'. Mirrors scripts/nci_engine.py: filter_ncis(status=Open, ...).",
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "triggers": {
+      "When_Copilot_calls_this_flow": {
+        "type": "Request",
+        "kind": "PowerVirtualAgents",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "account": { "type": "string", "title": "Account", "description": "Optional. e.g. Contoso" },
+              "region": { "type": "string", "title": "Region", "description": "Optional. APAC, USA, or Europe" },
+              "department": { "type": "string", "title": "Department", "description": "Optional. Cloud or NMS" }
+            }
+          }
+        }
+      }
+    },
+    "actions": {
+      "Get_instance_config": {
+        "type": "OpenApiConnection",
+        "runAfter": {},
+        "inputs": {
+          "host": { "connectionName": "shared_sharepointonline", "operationId": "GetItems" },
+          "parameters": {
+            "dataset": "https://yourtenant.sharepoint.com/sites/IssueManagement",
+            "table": "InstanceConfig",
+            "$filter": "@if(empty(triggerBody()?['region']), '', concat('Region eq ''', triggerBody()?['region'], ''''))"
+          }
+        },
+        "_comment": "Replace with your SharePoint site/list holding config/instances.csv, or hardcode the 3 instance URLs if a list is overkill."
+      },
+      "For_each_instance": {
+        "type": "Foreach",
+        "runAfter": { "Get_instance_config": ["Succeeded"] },
+        "foreach": "@body('Get_instance_config')?['value']",
+        "actions": {
+          "Get_NCIs_from_ServiceNow_GRC": {
+            "type": "OpenApiConnection",
+            "inputs": {
+              "host": { "connectionName": "shared_service-now", "operationId": "GetRecords" },
+              "parameters": {
+                "table": "sn_grc_issue",
+                "sysparm_query": "active=true"
+              }
+            },
+            "_comment": "Use the ServiceNow connector's connection tied to items('For_each_instance')?['connection_reference_name'], or raw HTTP + OAuth client-credentials against items('For_each_instance')?['instance_url'] if the managed connector doesn't expose the GRC issue table."
+          },
+          "Append_to_all_NCIs": {
+            "type": "AppendToArrayVariable",
+            "runAfter": { "Get_NCIs_from_ServiceNow_GRC": ["Succeeded"] },
+            "inputs": {
+              "name": "AllNCIs",
+              "value": "@body('Get_NCIs_from_ServiceNow_GRC')?['result']"
+            }
+          }
+        }
+      },
+      "Filter_by_account_department_status": {
+        "type": "Query",
+        "runAfter": { "For_each_instance": ["Succeeded"] },
+        "inputs": {
+          "from": "@variables('AllNCIs')",
+          "where": "@and(or(empty(triggerBody()?['account']), equals(item()?['account'], triggerBody()?['account'])), or(empty(triggerBody()?['department']), equals(item()?['department'], triggerBody()?['department'])), equals(item()?['status'], 'Open'))"
+        }
+      },
+      "Select_report_fields": {
+        "type": "Select",
+        "runAfter": { "Filter_by_account_department_status": ["Succeeded"] },
+        "inputs": {
+          "from": "@body('Filter_by_account_department_status')",
+          "select": {
+            "nci_id": "@item()?['nci_id']",
+            "account": "@item()?['account']",
+            "region": "@item()?['region']",
+            "severity": "@item()?['severity']",
+            "due_date": "@item()?['due_date']",
+            "extension_count": "@item()?['extension_count']"
+          }
+        }
+      },
+      "Respond_to_Copilot": {
+        "type": "Response",
+        "kind": "PowerVirtualAgents",
+        "runAfter": { "Select_report_fields": ["Succeeded"] },
+        "inputs": {
+          "body": {
+            "matchCount": "@length(body('Select_report_fields'))",
+            "matches": "@body('Select_report_fields')"
+          }
+        }
+      }
+    }
+  },
+  "_deployment_notes": [
+    "Create connection references first: shared_sharepointonline (or Dataverse) for InstanceConfig/Tracker, and either the ServiceNow connector or an HTTP+OAuth connection per region for GRC.",
+    "This flow returns data only — Copilot Studio renders 'matches' as an Adaptive Card or table in chat.",
+    "Variable 'AllNCIs' must be initialized once before the loop with an Initialize variable action (array, empty)."
+  ]
+}
